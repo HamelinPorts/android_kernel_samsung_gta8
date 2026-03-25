@@ -813,6 +813,10 @@ static int set_config(struct usb_composite_dev *cdev,
 	unsigned		power = gadget_is_otg(gadget) ? 8 : 100;
 	int			tmp;
 
+	if (gadget->state == USB_STATE_CONFIGURED && cdev->config &&
+	    cdev->config->bConfigurationValue == number)
+		return 0;
+
 	if (number) {
 		list_for_each_entry(c, &cdev->configs, list) {
 			if (c->bConfigurationValue == number) {
@@ -2030,9 +2034,11 @@ unknown:
 			break;
 		}
 try_fun_setup:
-		if (f && f->setup)
+		if (f && f->setup) {
+			spin_lock(&cdev->lock);
 			value = f->setup(f, ctrl);
-		else {
+			spin_unlock(&cdev->lock);
+		} else {
 			struct usb_configuration	*c;
 
 			c = cdev->config;
@@ -2050,8 +2056,11 @@ try_fun_setup:
 				goto done;
 			f = list_first_entry(&c->functions, struct usb_function,
 					     list);
-			if (f->setup)
+			if (f->setup) {
+				spin_lock(&cdev->lock);
 				value = f->setup(f, ctrl);
+				spin_unlock(&cdev->lock);
+			}
 		}
 
 		goto done;
@@ -2346,6 +2355,10 @@ void composite_suspend(struct usb_gadget *gadget)
 	struct usb_composite_dev	*cdev = get_gadget_data(gadget);
 	struct usb_function		*f;
 
+	if (cdev == NULL) {
+		WARN(1, "%s: calling on a Gadget disconnected\n", __func__);
+		return;
+	}
 	/* REVISIT:  should we have config level
 	 * suspend/resume callbacks?
 	 */
@@ -2371,6 +2384,10 @@ void composite_resume(struct usb_gadget *gadget)
 	struct usb_function		*f;
 	unsigned			maxpower;
 
+	if (cdev == NULL) {
+		WARN(1, "%s: calling on a Gadget disconnected\n", __func__);
+		return;
+	}
 	/* REVISIT:  should we have config level
 	 * suspend/resume callbacks?
 	 */

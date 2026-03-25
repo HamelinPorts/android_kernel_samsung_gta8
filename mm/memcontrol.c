@@ -74,6 +74,8 @@
 
 #include <trace/events/vmscan.h>
 
+#include <linux/protect_lru.h>
+
 struct cgroup_subsys memory_cgrp_subsys __read_mostly;
 EXPORT_SYMBOL(memory_cgrp_subsys);
 
@@ -2097,6 +2099,7 @@ static void lock_page_lru(struct page *page, int *isolated)
 
 		lruvec = mem_cgroup_page_lruvec(page, zone->zone_pgdat);
 		ClearPageLRU(page);
+		del_page_from_protect_lru_list(page, lruvec);
 		del_page_from_lru_list(page, lruvec, page_lru(page));
 		*isolated = 1;
 	} else
@@ -2114,6 +2117,7 @@ static void unlock_page_lru(struct page *page, int isolated)
 		VM_BUG_ON_PAGE(PageLRU(page), page);
 		SetPageLRU(page);
 		add_page_to_lru_list(page, lruvec, page_lru(page));
+		add_page_to_protect_lru_list(page, lruvec, true);
 	}
 	spin_unlock_irq(zone_lru_lock(zone));
 }
@@ -3304,7 +3308,7 @@ static int mem_cgroup_swappiness_write(struct cgroup_subsys_state *css,
 {
 	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
 
-	if (val > 100)
+	if (val > 200)
 		return -EINVAL;
 
 	if (css->parent)
@@ -4238,7 +4242,11 @@ static int alloc_mem_cgroup_per_node_info(struct mem_cgroup *memcg, int node)
 		return 1;
 	}
 
+#ifdef CONFIG_PROTECT_LRU
+	lruvec_init(memcg, &pn->lruvec);
+#else
 	lruvec_init(&pn->lruvec);
+#endif
 	pn->usage_in_excess = 0;
 	pn->on_tree = false;
 	pn->memcg = memcg;
@@ -5594,8 +5602,15 @@ int mem_cgroup_try_charge(struct page *page, struct mm_struct *mm,
 		}
 	}
 
+#ifdef CONFIG_PROTECT_LRU
+	if (!memcg && (gfp_mask & __GFP_PROTECT_LRU) && protect_lru_enable)
+		memcg = root_mem_cgroup;
+	else if (!memcg)
+		memcg = get_mem_cgroup_from_mm(mm);
+#else
 	if (!memcg)
 		memcg = get_mem_cgroup_from_mm(mm);
+#endif
 
 	ret = try_charge(memcg, gfp_mask, nr_pages);
 

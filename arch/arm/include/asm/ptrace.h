@@ -193,5 +193,7 @@ static inline unsigned long it_advance(unsigned long cpsr)
 	return cpsr;
 }
 
+extern void get_pt_regs(struct pt_regs *);
+
 #endif /* __ASSEMBLY__ */
 #endif

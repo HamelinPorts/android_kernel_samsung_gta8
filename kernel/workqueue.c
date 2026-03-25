@@ -53,6 +53,10 @@
 
 #include "workqueue_internal.h"
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
+#include <linux/sec_debug.h>
+#endif
+
 enum {
 	/*
 	 * worker_pool flags
@@ -2139,6 +2143,9 @@ __acquires(&pool->lock)
 	 */
 	lockdep_invariant_state(true);
 	trace_workqueue_execute_start(work);
+#if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
+	sec_debug_sched_msg(NULL, worker->current_func);
+#endif
 	worker->current_func(work);
 	/*
 	 * While we must be careful to not use "work" after this, the trace

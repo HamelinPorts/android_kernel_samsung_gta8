@@ -320,4 +320,5 @@ void __kasan_report(unsigned long addr, size_t size, bool is_write, unsigned lon
 	}
 
 	end_report(&flags);
+	BUG_ON(true);
 }
