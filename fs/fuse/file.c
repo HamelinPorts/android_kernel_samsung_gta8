@@ -17,6 +17,7 @@
 #include <linux/swap.h>
 #include <linux/falloc.h>
 #include <linux/uio.h>
+#include <linux/sched/mm.h>
 #include <linux/fs.h>
 
 static const struct file_operations fuse_direct_io_file_operations;
@@ -135,6 +136,7 @@ int fuse_do_open(struct fuse_conn *fc, u64 nodeid, struct file *file,
 		if (!err) {
 			ff->fh = outarg.fh;
 			ff->open_flags = outarg.open_flags;
+			fuse_passthrough_setup(fc, ff, &outarg);
 
 		} else if (err != -ENOSYS || isdir) {
 			fuse_file_free(ff);
@@ -174,9 +176,14 @@ void fuse_finish_open(struct inode *inode, struct file *file)
 {
 	struct fuse_file *ff = file->private_data;
 	struct fuse_conn *fc = get_fuse_conn(inode);
+	struct fuse_inode *fi = get_fuse_inode(inode);
 
-	if (ff->open_flags & FOPEN_DIRECT_IO)
+	if (ff->open_flags & FOPEN_DIRECT_IO ||
+			test_bit(FUSE_I_ATTR_FORCE_SYNC, &fi->state)) {
+		ff->open_flags |= FOPEN_DIRECT_IO;
 		file->f_op = &fuse_direct_io_file_operations;
+		set_bit(FUSE_I_ATTR_FORCE_SYNC, &fi->state);
+	}
 	if (!(ff->open_flags & FOPEN_KEEP_CACHE))
 		invalidate_inode_pages2(inode->i_mapping);
 	if (ff->open_flags & FOPEN_STREAM)
@@ -259,6 +266,8 @@ void fuse_release_common(struct file *file, bool isdir)
 	struct fuse_file *ff = file->private_data;
 	struct fuse_req *req = ff->reserved_req;
 	int opcode = isdir ? FUSE_RELEASEDIR : FUSE_RELEASE;
+
+	fuse_passthrough_release(&ff->passthrough);
 
 	fuse_prepare_release(ff, file->f_flags, opcode);
 
@@ -382,7 +391,7 @@ static int fuse_wait_on_page_writeback(struct inode *inode, pgoff_t index)
 {
 	struct fuse_inode *fi = get_fuse_inode(inode);
 
-	wait_event(fi->page_waitq, !fuse_page_is_writeback(inode, index));
+	fuse_wait_event(fi->page_waitq, !fuse_page_is_writeback(inode, index));
 	return 0;
 }
 
@@ -929,10 +938,14 @@ static ssize_t fuse_file_read_iter(struct kiocb *iocb, struct iov_iter *to)
 {
 	struct inode *inode = iocb->ki_filp->f_mapping->host;
 	struct fuse_conn *fc = get_fuse_conn(inode);
+	struct file *file = iocb->ki_filp;
+	struct fuse_file *ff = file->private_data;
 
 	if (fuse_is_bad(inode))
 		return -EIO;
 
+	if (ff->passthrough.filp)
+		return fuse_passthrough_read_iter(iocb, to);
 	/*
 	 * In auto invalidate mode, always update attributes on read.
 	 * Otherwise, only update if we attempt to read past EOF (to ensure
@@ -1189,6 +1202,13 @@ static ssize_t fuse_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	struct inode *inode = mapping->host;
 	ssize_t err;
 	loff_t endbyte = 0;
+	struct fuse_file *ff = file->private_data;
+
+	if (fuse_is_bad(file_inode(file)))
+		return -EIO;
+
+	if (ff->passthrough.filp)
+		return fuse_passthrough_write_iter(iocb, from);
 
 	if (fuse_is_bad(inode))
 		return -EIO;
@@ -1443,6 +1463,16 @@ static ssize_t __fuse_direct_read(struct fuse_io_priv *io,
 static ssize_t fuse_direct_read_iter(struct kiocb *iocb, struct iov_iter *to)
 {
 	struct fuse_io_priv io = FUSE_IO_PRIV_SYNC(iocb);
+
+	struct file *file = iocb->ki_filp;
+	struct fuse_file *ff = file->private_data;
+
+	if (fuse_is_bad(file_inode(file)))
+		return -EIO;
+
+	if (ff->passthrough.filp)
+		return fuse_passthrough_read_iter(iocb, to);
+
 	return __fuse_direct_read(&io, to, &iocb->ki_pos);
 }
 
@@ -1451,9 +1481,14 @@ static ssize_t fuse_direct_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	struct inode *inode = file_inode(iocb->ki_filp);
 	struct fuse_io_priv io = FUSE_IO_PRIV_SYNC(iocb);
 	ssize_t res;
+	struct file *file = iocb->ki_filp;
+	struct fuse_file *ff = file->private_data;
 
 	if (fuse_is_bad(inode))
 		return -EIO;
+
+	if (ff->passthrough.filp)
+		return fuse_passthrough_write_iter(iocb, from);
 
 	/* Don't allow parallel writes to the same file */
 	inode_lock(inode);
@@ -1629,12 +1664,15 @@ int fuse_write_inode(struct inode *inode, struct writeback_control *wbc)
 	struct fuse_inode *fi = get_fuse_inode(inode);
 	struct fuse_file *ff;
 	int err;
+	/* @fs.sec -- E8B3F75DDB82DFE8F52508F039ABE4FF -- */
+	unsigned int nofs_flag = memalloc_nofs_save();
 
 	ff = __fuse_write_file_get(fc, fi);
 	err = fuse_flush_times(inode, ff);
 	if (ff)
 		fuse_file_put(ff, false, false);
 
+	memalloc_nofs_restore(nofs_flag);
 	return err;
 }
 
@@ -2093,6 +2131,11 @@ static const struct vm_operations_struct fuse_file_vm_ops = {
 
 static int fuse_file_mmap(struct file *file, struct vm_area_struct *vma)
 {
+	struct fuse_file *ff = file->private_data;
+
+	if (ff->passthrough.filp)
+		return fuse_passthrough_mmap(file, vma);
+
 	if ((vma->vm_flags & VM_SHARED) && (vma->vm_flags & VM_MAYWRITE))
 		fuse_link_write_file(file);
 
@@ -2103,6 +2146,11 @@ static int fuse_file_mmap(struct file *file, struct vm_area_struct *vma)
 
 static int fuse_direct_mmap(struct file *file, struct vm_area_struct *vma)
 {
+	struct fuse_file *ff = file->private_data;
+
+	if (ff->passthrough.filp)
+		return fuse_passthrough_mmap(file, vma);
+
 	/* Can't provide the coherency needed for MAP_SHARED */
 	if (vma->vm_flags & VM_MAYSHARE)
 		return -ENODEV;

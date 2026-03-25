@@ -378,11 +378,13 @@ static void acc_complete_set_string(struct usb_ep *ep, struct usb_request *req)
 		if (length >= ACC_STRING_SIZE)
 			length = ACC_STRING_SIZE - 1;
 
-		spin_lock_irqsave(&dev->lock, flags);
-		memcpy(string_dest, req->buf, length);
-		/* ensure zero termination */
-		string_dest[length] = 0;
-		spin_unlock_irqrestore(&dev->lock, flags);
+		if (length > 0) {
+			spin_lock_irqsave(&dev->lock, flags);
+			memcpy(string_dest, req->buf, length);
+			/* ensure zero termination */
+			string_dest[length] = 0;
+			spin_unlock_irqrestore(&dev->lock, flags);
+		}
 	} else {
 		pr_err("unknown accessory string index %d\n",
 			dev->string_index);
@@ -854,6 +856,9 @@ static const struct file_operations acc_fops = {
 	.read = acc_read,
 	.write = acc_write,
 	.unlocked_ioctl = acc_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = acc_ioctl,
+#endif
 	.open = acc_open,
 	.release = acc_release,
 };

@@ -1518,6 +1518,7 @@ out:
 static void uart_close(struct tty_struct *tty, struct file *filp)
 {
 	struct uart_state *state = tty->driver_data;
+	struct uart_port *uport;
 	struct tty_port *port;
 
 	if (!state) {
@@ -1534,6 +1535,12 @@ static void uart_close(struct tty_struct *tty, struct file *filp)
 	port = &state->port;
 	pr_debug("uart_close(%d) called\n", tty->index);
 
+	mutex_lock(&state->port.mutex);
+	uport = uart_port_check(state);
+	if (uport && uart_console(uport))
+		uport->cons->cflag = tty->termios.c_cflag;
+
+	mutex_unlock(&state->port.mutex);
 	tty_port_close(tty->port, tty, filp);
 }
 

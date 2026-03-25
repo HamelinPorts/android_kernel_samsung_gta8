@@ -69,6 +69,8 @@ static void dma_buf_release(struct dentry *dentry)
 	struct dma_buf *dmabuf;
 
 	dmabuf = dentry->d_fsdata;
+	if (unlikely(!dmabuf))
+		return;
 
 	BUG_ON(dmabuf->vmapping_counter);
 
@@ -474,6 +476,7 @@ static struct file *dma_buf_getfile(struct dma_buf *dmabuf, int flags)
 	return file;
 
 err_alloc_file:
+	ihold(inode);
 	path_put(&path);
 err_d_alloc:
 	iput(inode);
