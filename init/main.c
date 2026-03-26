@@ -102,8 +102,8 @@
 
 #if IS_ENABLED(CONFIG_SEC_DEBUG)
 #include <linux/sec_debug.h>
-#include <linux/sec_bootstat.h>
 #endif
+#include <linux/sec_bootstat.h>
 
 static int kernel_init(void *);
 
