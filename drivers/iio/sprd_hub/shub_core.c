@@ -1051,8 +1051,8 @@ static int send_lcd_info(struct shub_data *sensor)
 }
 /* HS03 code for SL6215DEV-3827 by liuguangqiang at 2021/12/15 end */
 /*Tab A8 code for SR-AX6300-01-65 by xiongxiaoliang at 2021/08/25 start*/
-static int first_light_calibration_data_send(struct shub_data *sensor);
-static int second_light_calibration_data_send(struct shub_data *sensor);
+static first_light_calibration_data_send(struct shub_data *sensor);
+static second_light_calibration_data_send(struct shub_data *sensor);
 static void shub_download_calibration_data_work(struct work_struct *work)
 {
 	struct shub_data *sensor = container_of(work,
@@ -2128,7 +2128,7 @@ static ssize_t second_light_calibration_status_show(struct device *dev,
 static DEVICE_ATTR_RO(second_light_calibration_status);
 
 /*Send calibration coefficient to CM4 and dynamic loading part during initialization*/
-static int first_light_calibration_data_send(struct shub_data *sensor)
+static first_light_calibration_data_send(struct shub_data *sensor)
 {
     int err;
     struct file *pfile;
@@ -2184,7 +2184,7 @@ static int first_light_calibration_data_send(struct shub_data *sensor)
     return 0;
 }
 
-static int second_light_calibration_data_send(struct shub_data *sensor)
+static second_light_calibration_data_send(struct shub_data *sensor)
 {
     int err;
     struct file *pfile;
