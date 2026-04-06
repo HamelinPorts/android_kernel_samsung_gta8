@@ -2170,7 +2170,11 @@ static int sc27xx_pd_update_header(struct sc27xx_pd *pd)
 
 	return 0;
 }
-
+/* Tab A8 code for AX6300U-207 by  lina at 20240205 start */
+#ifdef CONFIG_GXY_TIME_TO_FULL_NOW
+extern void gxy_ttf_work_cancel(void);
+#endif
+/* Tab A8 code for AX6300U-207 by  lina at 20240205 end */
 static int sc27xx_pd_check_vbus_cc_status(struct sc27xx_pd *pd)
 {
 	u32 val = 0;
@@ -2206,6 +2210,11 @@ static int sc27xx_pd_check_vbus_cc_status(struct sc27xx_pd *pd)
 			regmap_update_bits(pd->regmap, pd->base + SC27XX_INT_EN,
 					   rx_error_mask, rx_error_mask);
 		}
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 start */
+	#ifdef CONFIG_GXY_TIME_TO_FULL_NOW
+	gxy_ttf_work_cancel();
+	#endif
+	/* Tab A8 code for AX6300U-207 by  lina at 20240205 end */
 #ifdef CONFIG_DEBUG_FS
 		if (pd->pd_attached) {
 			cancel_delayed_work(&pd->log2printk);
