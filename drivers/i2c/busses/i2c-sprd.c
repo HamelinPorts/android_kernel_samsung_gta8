@@ -88,7 +88,6 @@ struct sprd_syscon_i2c {
 	u32 reg;
 	u32 mask;
 };
->>>>>>> X205XXU4DXG8
 
 /* SPRD i2c data structure */
 struct sprd_i2c {
