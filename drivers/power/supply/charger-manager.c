@@ -7109,7 +7109,7 @@ void hq_update_charing_count(struct charger_manager *cm)
 	return;
 }
 
-static hq_get_uisoc(struct charger_manager *cm)
+static int hq_get_uisoc(struct charger_manager *cm)
 {
 	int uisoc;
 
