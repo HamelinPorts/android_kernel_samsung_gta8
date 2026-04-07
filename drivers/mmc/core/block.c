@@ -961,7 +961,7 @@ static int mmc_blk_part_switch_pre(struct mmc_card *card,
 		if (ret)
 			return ret;
 	}
-	if ((part_type & mask) == mask) {
+	if ((part_type & mask) == mask)
 		mmc_retune_pause(card->host);
 #else
 	if ((part_type & mask) == mask) {
@@ -983,7 +983,7 @@ static int mmc_blk_part_switch_post(struct mmc_card *card,
 	int ret = 0;
 
 #if defined(CONFIG_EMMC_SOFTWARE_CQ_SUPPORT)
-	if ((part_type & mask) == mask) {
+	if ((part_type & mask) == mask)
 		mmc_retune_unpause(card->host);
 
 	/* enable cmdq

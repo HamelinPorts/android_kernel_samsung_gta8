@@ -1527,11 +1527,6 @@ static int ep_insert(struct eventpoll *ep, struct epoll_event *event,
 		ep_poll_safewake(&ep->poll_wait);
 
 	return 0;
-/* CVE-2021-1048 */
-error_unregister:
-	ep_unregister_pollwait(ep, epi);
-/* CVE-2021-1048 */
-
 error_unregister:
 	ep_unregister_pollwait(ep, epi);
 error_remove_epi:
