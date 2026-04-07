@@ -2,31 +2,13 @@
 
 #include "fuse_i.h"
 
-#include <linux/fuse.h>
 #include <linux/file.h>
+#include <linux/fuse.h>
 #include <linux/idr.h>
 #include <linux/uio.h>
 
-
-static rwf_t fuse_iocb_to_rwf(struct kiocb *iocb)
-{
-	int ifl = iocb->ki_flags;
-	rwf_t flags = 0;
-
-	if (ifl & IOCB_NOWAIT)
-		flags |= RWF_NOWAIT;
-	if (ifl & IOCB_HIPRI)
-		flags |= RWF_HIPRI;
-	if (ifl & IOCB_DSYNC)
-		flags |= RWF_DSYNC;
-	if (ifl & IOCB_SYNC)
-		flags |= RWF_SYNC;
-	if (ifl & IOCB_APPEND)
-		flags |= RWF_APPEND;
-
-	return flags;
-}
-
+#define PASSTHROUGH_IOCB_MASK                                                  \
+	(IOCB_APPEND | IOCB_DSYNC | IOCB_HIPRI | IOCB_NOWAIT | IOCB_SYNC)
 
 struct fuse_aio_req {
 	struct kiocb iocb;
@@ -116,7 +98,8 @@ ssize_t fuse_passthrough_read_iter(struct kiocb *iocb_fuse,
 	old_cred = override_creds(ff->passthrough.cred);
 	if (is_sync_kiocb(iocb_fuse)) {
 		ret = vfs_iter_read(passthrough_filp, iter, &iocb_fuse->ki_pos,
-				    fuse_iocb_to_rwf(iocb_fuse));
+				    iocb_to_rw_flags(iocb_fuse->ki_flags,
+						     PASSTHROUGH_IOCB_MASK));
 	} else {
 		struct fuse_aio_req *aio_req;
 
@@ -163,7 +146,8 @@ ssize_t fuse_passthrough_write_iter(struct kiocb *iocb_fuse,
 	if (is_sync_kiocb(iocb_fuse)) {
 		file_start_write(passthrough_filp);
 		ret = vfs_iter_write(passthrough_filp, iter, &iocb_fuse->ki_pos,
-				     fuse_iocb_to_rwf(iocb_fuse));
+				     iocb_to_rw_flags(iocb_fuse->ki_flags,
+						      PASSTHROUGH_IOCB_MASK));
 		file_end_write(passthrough_filp);
 		if (ret > 0)
 			fuse_copyattr(fuse_filp, passthrough_filp);
