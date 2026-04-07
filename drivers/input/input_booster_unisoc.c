@@ -122,7 +122,7 @@ int input_booster_init_vendor(void)
 	return 1;
 }
 
-void input_booster_exit_vendor()
+void input_booster_exit_vendor(void)
 {
 	pm_qos_remove_request(&cpufreq_little_min_qos);
 	pm_qos_remove_request(&cpufreq_big_min_qos);
