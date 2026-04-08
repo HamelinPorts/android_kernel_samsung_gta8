@@ -222,12 +222,11 @@ _decode_session4(struct sk_buff *skb, struct flowi *fl, int reverse)
 	}
 }
 
-static inline int xfrm4_garbage_collect(struct dst_ops *ops)
+static inline void xfrm4_garbage_collect(struct dst_ops *ops)
 {
 	struct net *net = container_of(ops, struct net, xfrm.xfrm4_dst_ops);
 
 	xfrm_garbage_collect_deferred(net);
-	return (dst_entries_get_slow(ops) > ops->gc_thresh * 2);
 }
 
 static void xfrm4_update_pmtu(struct dst_entry *dst, struct sock *sk,
