@@ -310,6 +310,7 @@ err_alloc_region:
 
 static const struct of_device_id sprd_time_sync_match_table[] = {
 	{.compatible = "sprd,time-sync", },
+	{}
 };
 
 static struct platform_driver sprd_time_sync_driver = {
