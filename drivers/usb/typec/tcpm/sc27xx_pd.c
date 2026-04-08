@@ -2304,18 +2304,21 @@ static void sc27xx_pd_work(struct work_struct *work)
 #define DP_CAP_PIN_DFP_ASSIGN(_cap_)	((((_cap_) & GENMASK(7, 0)) << 16) | \
 					 (((_cap_) & GENMASK(7, 0)) << 8))
 
-static const struct typec_altmode_desc sc27xx_alt_modes = {
+static const struct typec_altmode_desc sc27xx_alt_modes[] = {
+       	{
 	.svid = USB_TYPEC_DP_SID,
 	.mode = USB_TYPEC_DP_MODE,
 	.vdo = DP_CAP_CAPABILITY(DP_CAP_DFP_D) | DP_CAP_DP_SIGNALING | \
 		DP_CAP_RECEPTACLE | \
 		DP_CAP_PIN_DFP_ASSIGN(DP_PIN_ASSIGN_DP_BR),
+	},
+	{ /* the end */ }
 };
 
 static const struct tcpc_config sc27xx_pd_config = {
 	.type = TYPEC_PORT_DRP,
 	.default_role = TYPEC_SOURCE,
-	.alt_modes = &sc27xx_alt_modes,
+	.alt_modes = sc27xx_alt_modes,
 };
 
 static void sc27xx_init_tcpc_dev(struct sc27xx_pd *pd)
