@@ -59,8 +59,6 @@
 	__uml_initcall_end = .;
   }
 
-  SECURITY_INIT
-
   .test_modules : {
 	KUNIT_TEST_MODULES
   }
