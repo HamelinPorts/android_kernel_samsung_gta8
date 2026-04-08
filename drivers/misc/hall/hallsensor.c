@@ -24,6 +24,7 @@ module_param(hall_state, bool, 0644);
 struct hall_t hall_data;
 const struct of_device_id hall_of_match[] = {
     { .compatible = HALL_COMPATIBLE_DEVICE_ID, },
+    { }
 };
 
 static struct platform_driver hall_driver = {
