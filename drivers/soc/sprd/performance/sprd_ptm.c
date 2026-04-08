@@ -366,7 +366,7 @@ sprd_ptm_legacy_time_handler(struct hrtimer *timer)
 	}
 	wr_cnt = sdev->mode_info.legacy.bm_buf_write_cnt;
 	/* count stop time stamp */
-	ts_val = ktime_get_boot_ns();
+	ts_val = ktime_get_boottime_ns();
 	bm_info[wr_cnt].t_stop = (u32)ts_val;
 	bm_info[wr_cnt].count = num++;
 	/* it should clear ptm eb before read ptm data */
