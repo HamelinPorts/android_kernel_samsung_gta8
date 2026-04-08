@@ -632,6 +632,7 @@ static const struct of_device_id sprd_audio_power_of_match[] = {
 	SPRD_OF_MATCH("sp,audio-dig-clk-intc", DIG_CLK_INTC),
 	SPRD_OF_MATCH("sp,audio-dig-clk-hid", DIG_CLK_HID),
 	SPRD_OF_MATCH("sp,audio-clk-dcl-32k", CLK_DCL_32K),
+	{}
 };
 
 static struct device_node *sprd_audio_power_get_ana_node(void)
