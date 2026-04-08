@@ -65,7 +65,7 @@ struct lookat {
 	struct regmap *regmap;
 	struct lookat_request request;
 	struct list_head request_list;
-	u32 slave_offset;
+	unsigned long slave_offset;
 };
 
 static struct lookat lookat_desc;
@@ -77,7 +77,7 @@ static int sprd_is_adi_vaddr(unsigned long vaddr)
 
 static int sprd_adi_p2v(unsigned long paddr, unsigned long *vaddr)
 {
-	u32 offset = lookat_desc.slave_offset;
+	unsigned long offset = lookat_desc.slave_offset;
 
 	if ((paddr < (adi_phy_base + offset))
 			|| paddr > (adi_phy_base + offset + ADI_ADDR_SIZE))
@@ -150,7 +150,7 @@ static int sprd_read_pa(unsigned long preg, unsigned long *val)
 			iounmap(io_addr);
 		}
 	} else {
-		*val = *(u32 *)addr;
+		*val = *(unsigned long *)addr;
 	}
 
 	return 0;
@@ -368,7 +368,7 @@ static int __init lookat_debug_init(void)
 	if (of_device_is_compatible(regmap_np->parent, "sprd,sc2730"))
 		lookat_desc.slave_offset = ADI_15BIT_OFFSET;
 	else
-		lookat_desc.slave_offset = (u32)lookat_id->data;
+		lookat_desc.slave_offset = (unsigned long)lookat_id->data;
 
 	pdev_regmap = of_find_device_by_node(regmap_np);
 	if (!pdev_regmap)
