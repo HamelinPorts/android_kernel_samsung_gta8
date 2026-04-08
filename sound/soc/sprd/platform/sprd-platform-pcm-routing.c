@@ -969,7 +969,8 @@ static int sprd_platform_routing_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id sprd_pcm_routing_of_match[] = {
-	{.compatible = "sprd,pcm-routing"}
+	{.compatible = "sprd,pcm-routing"},
+	{ }
 };
 
 MODULE_DEVICE_TABLE(of, sprd_pcm_routing_of_match);
