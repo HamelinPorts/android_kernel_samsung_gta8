@@ -380,6 +380,7 @@ static const struct of_device_id sprd_hwdvfs_l3_of_match[] = {
 		 .compatible = "sprd,sharkl3-hwdvfs-3h10",
 		 .data = (void *)&sprd_hwdvfs_l3_info_3h10,
 	},
+	{ }
 };
 
 static unsigned int dvfs_rd(unsigned int reg)
