@@ -196,6 +196,8 @@ static const struct of_device_id sprd_iommu_ids[] = {
 
 	{ .compatible = "sprd,iommuvau-vdma",
 	  .data = (void *)(IOMMU_VAU_VDMA)},
+
+	{ }
 };
 
 static struct platform_driver iommu_driver = {
