@@ -61,7 +61,8 @@ static inline struct tcpci *tcpc_to_tcpci(struct tcpc_dev *tcpc)
 	return container_of(tcpc, struct tcpci, tcpc);
 }
 
-static int tcpci_read16(struct tcpci *tcpci, unsigned int reg, u16 *val)
+static int tcpci_read16(struct tcpci *tcpci, unsigned int reg,
+			u16 *val)
 {
 	return regmap_raw_read(tcpci->regmap, reg, val, sizeof(u16));
 }
@@ -390,6 +391,10 @@ static int tcpci_init(struct tcpc_dev *tcpc)
 		if (ret < 0)
 			return ret;
 	}
+
+	ret = tcpci_write16(tcpci, TCPC_FAULT_STATUS, TCPC_FAULT_STATUS_ALL_REG_RST_TO_DEFAULT);
+	if (ret < 0)
+		return ret;
 
 	/* Clear all events */
 	ret = tcpci_write16(tcpci, TCPC_ALERT, 0xffff);
