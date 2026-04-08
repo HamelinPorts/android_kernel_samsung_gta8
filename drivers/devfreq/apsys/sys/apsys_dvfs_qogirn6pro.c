@@ -221,6 +221,7 @@ static const struct of_device_id sprd_dvfs_of_match[] = {
 	{
 		.compatible = "sprd,ump962x-syscon",
 	},
+	{ }
 };
 
 int dpu_vsp_dvfs_check_clkeb(void)
