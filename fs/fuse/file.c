@@ -137,7 +137,6 @@ int fuse_do_open(struct fuse_conn *fc, u64 nodeid, struct file *file,
 			ff->fh = outarg.fh;
 			ff->open_flags = outarg.open_flags;
 			fuse_passthrough_setup(fc, ff, &outarg);
-
 		} else if (err != -ENOSYS || isdir) {
 			fuse_file_free(ff);
 			return err;
@@ -938,8 +937,7 @@ static ssize_t fuse_file_read_iter(struct kiocb *iocb, struct iov_iter *to)
 {
 	struct inode *inode = iocb->ki_filp->f_mapping->host;
 	struct fuse_conn *fc = get_fuse_conn(inode);
-	struct file *file = iocb->ki_filp;
-	struct fuse_file *ff = file->private_data;
+	struct fuse_file *ff = iocb->ki_filp->private_data;
 
 	if (fuse_is_bad(inode))
 		return -EIO;
@@ -959,6 +957,8 @@ static ssize_t fuse_file_read_iter(struct kiocb *iocb, struct iov_iter *to)
 			return err;
 	}
 
+	if (ff->passthrough.filp)
+		return fuse_passthrough_read_iter(iocb, to);
 	return generic_file_read_iter(iocb, to);
 }
 
@@ -1203,9 +1203,6 @@ static ssize_t fuse_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	ssize_t err;
 	loff_t endbyte = 0;
 	struct fuse_file *ff = file->private_data;
-
-	if (fuse_is_bad(file_inode(file)))
-		return -EIO;
 
 	if (ff->passthrough.filp)
 		return fuse_passthrough_write_iter(iocb, from);
