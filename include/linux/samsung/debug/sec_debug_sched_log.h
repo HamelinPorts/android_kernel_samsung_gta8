@@ -20,7 +20,12 @@ extern void sec_debug_task_sched_log(int cpu, bool preempt, struct task_struct *
 
 /* called @ kernel/irq/chip.c */
 /* called @ kernel/irq/handle.c */
-extern void sec_debug_irq_sched_log(unsigned int irq, void *desc_or_fn, void *action_or_name, unsigned int en);
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2)
+struct irq_desc;
+extern void sec_debug_irq_sched_log(unsigned int irq, struct irq_desc *desc, struct irqaction *action, unsigned int en);
+#else
+extern void sec_debug_irq_sched_log(unsigned int irq, void *fn, char *name, unsigned int en)
+#endif
 
 /* called @ kernel/softirq.c */
 extern void sec_debug_softirq_sched_log(unsigned int irq, void *fn, char *name, unsigned int en);

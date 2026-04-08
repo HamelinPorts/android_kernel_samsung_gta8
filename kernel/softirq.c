@@ -513,6 +513,10 @@ EXPORT_SYMBOL(__tasklet_hi_schedule);
 static __latent_entropy void tasklet_action(struct softirq_action *a)
 {
 	struct tasklet_struct *list;
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2)
+	struct irq_desc desc = {};
+	struct irqaction action = { .name = "tasklet_action" };
+#endif
 
 	local_irq_disable();
 	list = __this_cpu_read(tasklet_vec.head);
@@ -531,11 +535,22 @@ static __latent_entropy void tasklet_action(struct softirq_action *a)
 							&t->state))
 					BUG();
 #if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2)
+				// this is shitty but more than before already. Nobody seems to call this handler anyway.
+				action.handler = (void*) t->func;
+				sec_debug_irq_sched_log(-1, &desc, &action, SOFTIRQ_ENTRY);
+#else /* undefined CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2 */
 				sec_debug_irq_sched_log(-1, t->func, "tasket_action", SOFTIRQ_ENTRY);
+#endif /* CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2 */
 #endif
 				t->func(t->data);
 #if IS_ENABLED(CONFIG_SEC_DEBUG_SCHED_LOG)
+#if defined(CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2)
+				// reuse action from above
+				sec_debug_irq_sched_log(-1, &desc, &action, SOFTIRQ_EXIT);
+#else /* undefined CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2 */
 				sec_debug_irq_sched_log(-1, t->func, "tasket_action", SOFTIRQ_EXIT);
+#endif /* CONFIG_SEC_DEBUG_SCHED_LOG_IRQ_V2 */
 #endif
 
 				tasklet_unlock(t);
