@@ -48,7 +48,7 @@ static int xfrm_skb_check_space(struct sk_buff *skb)
 
 static struct dst_entry *skb_dst_pop(struct sk_buff *skb)
 {
-	struct dst_entry *child = dst_clone(skb_dst(skb)->child);
+	struct dst_entry *child = dst_clone(xfrm_dst_child(skb_dst(skb)));
 
 	skb_dst_drop(skb);
 	return child;
@@ -257,7 +257,7 @@ static int xfrm_output_resume_frag_sub(struct sk_buff *skb,
 	struct net *net = xs_net(skb_dst(skb)->xfrm);
 	*exit = 0;
 
-	if (skb_dst(skb)->child && !((skb_dst(skb)->child)->xfrm)) {
+	if (xfrm_dst_child(skb_dst(skb)) && !(xfrm_dst_child(skb_dst(skb))->xfrm)) {
 		/*it is external xfrm,when done,exit the loop while*/
 		*exit = 1;
 	}
