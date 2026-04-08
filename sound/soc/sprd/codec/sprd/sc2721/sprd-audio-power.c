@@ -502,6 +502,7 @@ static const struct of_device_id sprd_audio_power_of_match[] = {
 	SPRD_OF_MATCH("sp,audio-vmicbias", VMICBIAS),
 	SPRD_OF_MATCH("sp,audio-micbias", MICBIAS),
 	SPRD_OF_MATCH("sp,audio-headmicbias", HEADMICBIAS),
+	{ }
 };
 
 static struct device_node *sprd_audio_power_get_ana_node(void)
