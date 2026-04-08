@@ -680,6 +680,7 @@ static const struct of_device_id spidev_dt_ids[] = {
 /* Tab A8 code for SR-AX6300-01-207 by wangdeyan at 20210812 start */
 	{ .compatible = "sec,grdm-spi" },
 /* Tab A8 code for SR-AX6300-01-207 by wangdeyan at 20210812 start */
+	{},
 };
 MODULE_DEVICE_TABLE(of, spidev_dt_ids);
 #endif
