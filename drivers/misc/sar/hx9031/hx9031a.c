@@ -366,23 +366,23 @@ static int8_t hx9031a_id_check(void)
 bool Is_Wifi_Version(void)
 {
     char* str = NULL;
-    char board_string[12] = {0};
+    char board_string[16] = {0};
     int ret = 0;
     printk(KERN_ERR "%s\n",saved_command_line);
     str = strstr(saved_command_line,BOARD_INFO);
     if(str == NULL)
     {
-        printk(KERN_ERR "strstr func error\n");
+        printk(KERN_ERR "strstr func error: \"%s\" not found in \"%s\"\n", BOARD_INFO, saved_command_line);
         return false;
     }
-    ret = sscanf(str,BOARD_INFO"%s",board_string);
+    ret = sscanf(str,BOARD_INFO"%15s",board_string);
     if(ret == -1)
     {
-        printk(KERN_ERR "sscanf func error\n");
+        printk(KERN_ERR "sscanf func error - could not parse BOARD_INFO from command line\n");
         return false;
     }
     printk(KERN_ERR "Board_info:%s\n",board_string);
-    if(!strncmp(board_string,BOARD_WIFI,11))
+    if(!strncmp(board_string,BOARD_WIFI,15))
         return true;
     return false;
 }
