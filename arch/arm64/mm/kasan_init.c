@@ -234,6 +234,23 @@ void __init kasan_init(void)
 	}
 
 	/*
+	 * free_initmem() passes lm_alias(__init_begin/end) to
+	 * free_reserved_area(), which triggers KASAN shadow checks on the
+	 * ffffffc0... linear map alias of the __init region. On Unisoc UMS512
+	 * the physical memory backing __init lies in a hole not covered by any
+	 * memblock.memory region, so the memblock loop above misses it.
+	 *
+	 * Map the shadow explicitly here, AFTER the memblock loop, so that the
+	 * loop's kasan_pmd_populate() is not disrupted by a pre-populated PMD
+	 * entry (which would cause it to exit its do-while early and leave the
+	 * rest of the 1 GB PGD block unmapped).
+	 */
+	kasan_map_populate(
+		(unsigned long)kasan_mem_to_shadow(lm_alias(__init_begin)) & PAGE_MASK,
+		PAGE_ALIGN((unsigned long)kasan_mem_to_shadow(lm_alias(__init_end))),
+		early_pfn_to_nid(virt_to_pfn(lm_alias(__init_begin))));
+
+	/*
 	 * KAsan may reuse the contents of kasan_early_shadow_pte directly,
 	 * so we should make sure that it maps the zero page read-only.
 	 */
