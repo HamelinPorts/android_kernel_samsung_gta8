@@ -21,6 +21,9 @@
 #include <linux/time.h>
 #include <linux/time64.h>
 #include <linux/idr.h>
+#include <linux/hashtable.h>
+#include <linux/spinlock.h>
+#include <linux/slab.h>
 
 /* ------------------------------------------------------------------------- */
 /* ns_to_timespec                                                            */
@@ -68,22 +71,98 @@ EXPORT_SYMBOL(set_normalized_timespec);
 /* ida_simple_get / ida_simple_remove                                        */
 /*                                                                           */
 /* LineageOS replaced these with CPP macros around ida_alloc_range() and     */
-/* ida_free() in include/linux/idr.h, so the legacy function symbols are     */
-/* gone from vmlinux. Vendor modules (sprd_vdsp.ko etc.) still want them.    */
+/* ida_free() in include/linux/idr.h, but that is the easy half of the       */
+/* problem. The harder half is that LineageOS also rewrote                   */
+/* struct radix_tree_root (the only field of struct ida) and inserted a      */
+/* spinlock_t xa_lock at offset 0:                                           */
+/*                                                                           */
+/*     stock:    { gfp_t gfp_mask; struct radix_tree_node *rnode; }    16 B  */
+/*     lineage:  { spinlock_t xa_lock; gfp_t gfp_mask;                       */
+/*                 struct radix_tree_node *rnode; }                    24 B  */
+/*                                                                           */
+/* Vendor .ko files (sprd_vdsp etc.) statically allocate their struct ida    */
+/* objects with the 16-byte stock layout. If we let LineageOS's              */
+/* ida_alloc_range() touch those objects directly it reads the vendor's     */
+/* gfp_mask (= IDR_RT_MARKER | GFP_NOWAIT = 0x800) as if it were the         */
+/* embedded spinlock and spins forever waiting for it to "unlock", which     */
+/* trips the hardware watchdog inside ~20 s. Verified empirically against    */
+/* the X205 socko.d/sprd_vdsp.ko.                                            */
+/*                                                                           */
+/* The shim has to translate every vendor struct-ida pointer into a fresh    */
+/* LineageOS-format struct ida that LineageOS can poke at safely. We use     */
+/* the vendor pointer as an opaque cookie and keep a hash table of           */
+/* (vendor_ptr, real_ida) pairs. As long as the vendor module always passes  */
+/* the same pointer for the same logical IDA, the IDs returned to it stay   */
+/* consistent.                                                               */
 /* ------------------------------------------------------------------------- */
 #undef ida_simple_get
 #undef ida_simple_remove
 
+struct sec_compat_ida {
+	void			*vendor_ptr;
+	struct ida		real_ida;
+	struct hlist_node	node;
+};
+
+static DEFINE_HASHTABLE(sec_compat_ida_map, 6);
+static DEFINE_SPINLOCK(sec_compat_ida_map_lock);
+
+static struct ida *sec_get_compat_ida(void *vendor_ida)
+{
+	struct sec_compat_ida *e, *new_entry;
+	unsigned long flags;
+	unsigned long key = (unsigned long)vendor_ida;
+
+	spin_lock_irqsave(&sec_compat_ida_map_lock, flags);
+	hash_for_each_possible(sec_compat_ida_map, e, node, key) {
+		if (e->vendor_ptr == vendor_ida) {
+			spin_unlock_irqrestore(&sec_compat_ida_map_lock, flags);
+			return &e->real_ida;
+		}
+	}
+	spin_unlock_irqrestore(&sec_compat_ida_map_lock, flags);
+
+	/* First time we see this vendor pointer -- allocate a real IDA. */
+	new_entry = kzalloc(sizeof(*new_entry), GFP_KERNEL);
+	if (!new_entry)
+		return NULL;
+	new_entry->vendor_ptr = vendor_ida;
+	ida_init(&new_entry->real_ida);
+
+	spin_lock_irqsave(&sec_compat_ida_map_lock, flags);
+	/* Re-check for a racing inserter */
+	hash_for_each_possible(sec_compat_ida_map, e, node, key) {
+		if (e->vendor_ptr == vendor_ida) {
+			spin_unlock_irqrestore(&sec_compat_ida_map_lock, flags);
+			ida_destroy(&new_entry->real_ida);
+			kfree(new_entry);
+			return &e->real_ida;
+		}
+	}
+	hash_add(sec_compat_ida_map, &new_entry->node, key);
+	spin_unlock_irqrestore(&sec_compat_ida_map_lock, flags);
+	pr_info_once("sec_vendor_compat: bridging vendor struct ida @ %px to a LineageOS-format ida\n",
+		     vendor_ida);
+	return &new_entry->real_ida;
+}
+
 int ida_simple_get(struct ida *ida, unsigned int start, unsigned int end,
 		   gfp_t gfp_mask)
 {
-	return ida_alloc_range(ida, start, end ? end - 1 : ~0u, gfp_mask);
+	struct ida *real = sec_get_compat_ida(ida);
+
+	if (!real)
+		return -ENOMEM;
+	return ida_alloc_range(real, start, end ? end - 1 : ~0u, gfp_mask);
 }
 EXPORT_SYMBOL(ida_simple_get);
 
 void ida_simple_remove(struct ida *ida, unsigned int id)
 {
-	ida_free(ida, id);
+	struct ida *real = sec_get_compat_ida(ida);
+
+	if (real)
+		ida_free(real, id);
 }
 EXPORT_SYMBOL(ida_simple_remove);
 
