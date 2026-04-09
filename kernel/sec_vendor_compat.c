@@ -45,6 +45,26 @@ struct timespec ns_to_timespec(const s64 nsec)
 EXPORT_SYMBOL(ns_to_timespec);
 
 /* ------------------------------------------------------------------------- */
+/* set_normalized_timespec                                                   */
+/*                                                                           */
+/* Same gating story as ns_to_timespec: the implementation in                */
+/* kernel/time/time.c is inside #if __BITS_PER_LONG == 32, and time32.h has  */
+/* a "set_normalized_timespec -> set_normalized_timespec64" CPP define for   */
+/* in-tree callers. sprd_camera.ko was built before that and imports the     */
+/* legacy name.                                                              */
+/* ------------------------------------------------------------------------- */
+#undef set_normalized_timespec
+void set_normalized_timespec(struct timespec *ts, time_t sec, s64 nsec)
+{
+	struct timespec64 ts64 = { .tv_sec = sec, .tv_nsec = 0 };
+
+	set_normalized_timespec64(&ts64, sec, nsec);
+	ts->tv_sec  = (time_t)ts64.tv_sec;
+	ts->tv_nsec = ts64.tv_nsec;
+}
+EXPORT_SYMBOL(set_normalized_timespec);
+
+/* ------------------------------------------------------------------------- */
 /* ida_simple_get / ida_simple_remove                                        */
 /*                                                                           */
 /* LineageOS replaced these with CPP macros around ida_alloc_range() and     */
