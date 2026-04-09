@@ -437,10 +437,6 @@ struct module {
 	unsigned int num_tracepoints;
 	struct tracepoint * const *tracepoints_ptrs;
 #endif
-#ifdef CONFIG_BPF_EVENTS
-	unsigned int num_bpf_raw_events;
-	struct bpf_raw_event_map *bpf_raw_events;
-#endif
 #ifdef HAVE_JUMP_LABEL
 	struct jump_entry *jump_entries;
 	unsigned int num_jump_entries;
@@ -478,6 +474,21 @@ struct module {
 	void (*exit)(void);
 
 	atomic_t refcnt;
+#endif
+
+	/*
+	 * CONFIG_BPF_EVENTS fields are placed after CONFIG_MODULE_UNLOAD on
+	 * purpose: the Samsung stock kernel that some out-of-tree vendor .ko
+	 * files (e.g. stmvl53l0) were built against does not have these
+	 * fields. Putting them before source_list/target_list/exit shifts
+	 * those by 16 bytes relative to the vendor's struct module layout,
+	 * so the kernel reads/writes target_list at the wrong offset and
+	 * Oopses inside add_usage_links(). Keeping the BPF fields here
+	 * preserves the offsets the vendor .ko expects.
+	 */
+#ifdef CONFIG_BPF_EVENTS
+	unsigned int num_bpf_raw_events;
+	struct bpf_raw_event_map *bpf_raw_events;
 #endif
 
 #ifdef CONFIG_CONSTRUCTORS
