@@ -242,8 +242,10 @@ static inline void sec_debug_pm_restart(char *cmd)
 	__pr_err("(%s) %s %s\n", __func__,
 		init_uts_ns.name.release, init_uts_ns.name.version);
 	__pr_err("(%s) rebooting...\n", __func__);
+#ifdef CONFIG_ARM
 	flush_cache_all();
 	outer_flush_all();
+#endif
 
 	if (arm_pm_restart)
 		arm_pm_restart(REBOOT_COLD, cmd);
