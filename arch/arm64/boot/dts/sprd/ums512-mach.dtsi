@@ -142,10 +142,14 @@
 			reg = <0x0 0x80001000 0x0 0x00001000>;
 		};
 
-		rebootescrow@0x81ff0000 {
-			no-map;
-			reg = <0x0 0x81ff0000 0x0 0x00010000>; /* 64K */
-		};
+		/*
+		 * rebootescrow used to live at 0x81ff0000 with no-map, but the
+		 * LineageOS kernel image grew large enough that __init_begin
+		 * lands at exactly that physical address. The no-map pokes a
+		 * 64K hole in the linear-map alias of __init, so free_initmem()
+		 * Oopses in __memset on the very first page. No driver in this
+		 * tree consumes the rebootescrow region, so just drop it.
+		 */
 
 		audio_reserved: audio-mem@87500000 {
 			reg = <0x0 0x87500000 0x0 0x00300000>;
@@ -228,10 +232,11 @@
 		sprd,name = "gnss_common_ctl";
 	};
 
-	rebootescrow@0 {
-		compatible = "pmem-region";
-		reg = <0x0 0x81ff0000 0x0 0x00010000>;
-	};
+	/*
+	 * rebootescrow pmem-region removed: see the matching note in
+	 * reserved-memory above. The carved-out 0x81ff0000..0x82000000
+	 * region collides with the LineageOS kernel image's __init.
+	 */
 
 	audio-mem-mgr {
 		memory-region = <&audio_reserved &audiodsp_reserved>;
