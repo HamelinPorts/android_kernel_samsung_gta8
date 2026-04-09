@@ -87,18 +87,22 @@ static pud_t *__init kasan_pud_offset(pgd_t *pgd, unsigned long addr, int node,
 static void __init kasan_pte_populate(pmd_t *pmd, unsigned long addr,
 				      unsigned long end, int node, bool early)
 {
-	unsigned long next;
 	pte_t *pte = kasan_pte_offset(pmd, addr, node, early);
 
 	do {
-		phys_addr_t page_phys = early ?
-				__pa_symbol(kasan_early_shadow_page)
-					: kasan_alloc_zeroed_page(node);
-		if (!early)
-			memset(__va(page_phys), KASAN_SHADOW_INIT, PAGE_SIZE);
-		next = addr + PAGE_SIZE;
-		set_pte(pte, pfn_pte(__phys_to_pfn(page_phys), PAGE_KERNEL));
-	} while (pte++, addr = next, addr != end && pte_none(*pte));
+		if (pte_none(*pte)) {
+			phys_addr_t page_phys = early ?
+					__pa_symbol(kasan_early_shadow_page)
+						: kasan_alloc_zeroed_page(node);
+			if (!early)
+				memset(__va(page_phys), KASAN_SHADOW_INIT,
+				       PAGE_SIZE);
+			set_pte(pte, pfn_pte(__phys_to_pfn(page_phys),
+					     PAGE_KERNEL));
+		}
+		addr += PAGE_SIZE;
+		pte++;
+	} while (addr != end);
 }
 
 static void __init kasan_pmd_populate(pud_t *pud, unsigned long addr,
@@ -110,7 +114,9 @@ static void __init kasan_pmd_populate(pud_t *pud, unsigned long addr,
 	do {
 		next = pmd_addr_end(addr, end);
 		kasan_pte_populate(pmd, addr, next, node, early);
-	} while (pmd++, addr = next, addr != end && pmd_none(*pmd));
+		pmd++;
+		addr = next;
+	} while (addr != end);
 }
 
 static void __init kasan_pud_populate(pgd_t *pgd, unsigned long addr,
@@ -122,7 +128,9 @@ static void __init kasan_pud_populate(pgd_t *pgd, unsigned long addr,
 	do {
 		next = pud_addr_end(addr, end);
 		kasan_pmd_populate(pud, addr, next, node, early);
-	} while (pud++, addr = next, addr != end && pud_none(*pud));
+		pud++;
+		addr = next;
+	} while (addr != end);
 }
 
 static void __init kasan_pgd_populate(unsigned long addr, unsigned long end,
