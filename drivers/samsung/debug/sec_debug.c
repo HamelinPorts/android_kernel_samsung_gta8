@@ -627,7 +627,14 @@ static int sec_debug_panic_handler(struct notifier_block *nb,
 #ifdef CONFIG_SEC_USER_RESET_DEBUG
 	sec_debug_store_backtrace();
 #endif
-	sec_debug_set_upload_magic(RESTART_REASON_SEC_DEBUG_MODE);
+	/*
+	 * Leave the restart-reason magic at RESTART_REASON_NORMAL so the
+	 * bootloader does not enter the Samsung "abnormal" debug mode after
+	 * a kernel oops/panic. This makes development iteration sane: the
+	 * device just reboots normally instead of getting stuck in the
+	 * upload/download UI on every panic.
+	 */
+	sec_debug_set_upload_magic(RESTART_REASON_NORMAL);
 
 	__pr_err("%s :%s\n", __func__, (char *)buf);
 
@@ -766,7 +773,12 @@ static int __init sec_debug_init(void)
 	register_reboot_notifier(&nb_reboot_block);
 	atomic_notifier_chain_register(&panic_notifier_list, &nb_panic_block);
 
-	sec_debug_set_upload_magic(RESTART_REASON_SEC_DEBUG_MODE);
+	/*
+	 * Boot in RESTART_REASON_NORMAL so an unexpected reset (hang,
+	 * watchdog, panic before the panic notifier runs) does not cause
+	 * the bootloader to drop into Samsung "abnormal" debug mode.
+	 */
+	sec_debug_set_upload_magic(RESTART_REASON_NORMAL);
 	sec_debug_set_upload_cause(UPLOAD_CAUSE_INIT);
 
 	/* TODO: below code caused reboot fail when debug level LOW */
