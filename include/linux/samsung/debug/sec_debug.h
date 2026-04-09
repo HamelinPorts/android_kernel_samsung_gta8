@@ -317,7 +317,10 @@ static inline void sec_debug_save_context(void)
 	sec_debug_save_core_reg(&per_cpu(sec_debug_core_reg, cpu));
 	pr_emerg("(%s) context saved(CPU:%d)\n", __func__, cpu);
 	local_irq_restore(flags);
+	/* flush_cache_all() is not available on arm64 (no-op) */
+#ifdef flush_cache_all
 	flush_cache_all();
+#endif
 }
 
 /* called @ drivers/power/reset/msm-poweroff.c */
