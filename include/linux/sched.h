@@ -765,14 +765,6 @@ struct task_struct {
 	struct list_head		rcu_tasks_holdout_list;
 #endif /* #ifdef CONFIG_TASKS_RCU */
 
-#ifdef CONFIG_TASKS_TRACE_RCU
-	int				trc_reader_nesting;
-	int				trc_ipi_to_cpu;
-	bool				trc_reader_need_end;
-	bool				trc_reader_checked;
-	struct list_head		trc_holdout_list;
-#endif /* #ifdef CONFIG_TASKS_TRACE_RCU */
-
 	struct sched_info		sched_info;
 
 	struct list_head		tasks;
@@ -790,6 +782,24 @@ struct task_struct {
 #ifdef SPLIT_RSS_COUNTING
 	struct task_rss_stat		rss_stat;
 #endif
+
+	/*
+	 * TASKS_TRACE_RCU fields moved below vmacache so that mm,
+	 * active_mm and vmacache keep the same offsets as in Samsung's
+	 * stock X205XXS6DYG6 kernel.  Prebuilt vendor .ko modules
+	 * (mali_gondul, etc.) access current->mm via a hardcoded
+	 * offset; the 32 bytes that these fields used to add before
+	 * sched_info shifted mm from 0x528 to 0x548, causing the Mali
+	 * driver to read garbage and corrupt the vmacache on first GPU
+	 * use.
+	 */
+#ifdef CONFIG_TASKS_TRACE_RCU
+	int				trc_reader_nesting;
+	int				trc_ipi_to_cpu;
+	bool				trc_reader_need_end;
+	bool				trc_reader_checked;
+	struct list_head		trc_holdout_list;
+#endif /* #ifdef CONFIG_TASKS_TRACE_RCU */
 	int				exit_state;
 	int				exit_code;
 	int				exit_signal;
