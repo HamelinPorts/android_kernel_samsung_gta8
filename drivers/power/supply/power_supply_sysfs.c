@@ -44,7 +44,16 @@ static const char * const power_supply_type_text[] = {
 	"Unknown", "Battery", "UPS", "Mains", "USB",
 	"USB_DCP", "USB_CDP", "USB_ACA", "USB_C",
 	"USB_PD", "USB_PD_DRP", "BrickID", "SFCP_1P0",
-	"SFCP_2P0", "Wireless"
+	"SFCP_2P0", "Wireless",
+#ifndef HQ_FACTORY_BUILD
+	"OTG",
+#endif
+#ifdef CONFIG_AFC
+	"AFC",
+#endif
+#if !defined(HQ_FACTORY_BUILD)
+	"USB_FLOAT",
+#endif
 };
 
 /* Tab A8 code for SR-AX6300-01-181 by zhangyanlong at 20210817 start */
