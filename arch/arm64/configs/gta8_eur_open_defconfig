@@ -4613,9 +4613,14 @@ CONFIG_CC_HAS_SANCOV_TRACE_PC=y
 # CONFIG_SOFTLOCKUP_DETECTOR is not set
 # CONFIG_DETECT_HUNG_TASK is not set
 # CONFIG_WQ_WATCHDOG is not set
-#CONFIG_PANIC_ON_OOPS=n
-#CONFIG_PANIC_ON_OOPS_VALUE=1
-CONFIG_PANIC_TIMEOUT=0
+# Any kernel oops escalates to a panic; the kernel reboots 5s later.
+# Paired with the bcb_armer userspace tool: /misc is pre-armed with
+# "boot-recovery" at post-fs-data and cleared on sys.boot_completed=1,
+# so a panic during boot redirects the next boot into recovery where
+# /sys/fs/pstore/ can be read to inspect the trace.
+CONFIG_PANIC_ON_OOPS=y
+CONFIG_PANIC_ON_OOPS_VALUE=1
+CONFIG_PANIC_TIMEOUT=5
 CONFIG_SCHED_DEBUG=y
 CONFIG_SCHED_INFO=y
 CONFIG_SCHEDSTATS=y

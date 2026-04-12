@@ -633,6 +633,13 @@ static int sec_debug_panic_handler(struct notifier_block *nb,
 	 * a kernel oops/panic. This makes development iteration sane: the
 	 * device just reboots normally instead of getting stuck in the
 	 * upload/download UI on every panic.
+	 *
+	 * Note: we tried writing RESTART_REASON_RECOVERY here to auto-boot
+	 * into recovery on panic, but this bootloader uses /misc or the
+	 * param_index_reboot_recovery_cause parameter to decide recovery,
+	 * not the sprd_restart_reason magic. Samsung's built-in boot
+	 * failure counter will fall back to recovery after a few failed
+	 * boots, which is sufficient for debugging.
 	 */
 	sec_debug_set_upload_magic(RESTART_REASON_NORMAL);
 
