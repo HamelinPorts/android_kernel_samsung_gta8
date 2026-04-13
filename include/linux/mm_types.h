@@ -407,6 +407,14 @@ struct mm_struct {
 #ifdef CONFIG_MMU
 	atomic_long_t pgtables_bytes;		/* PTE page table pages */
 #endif
+	/*
+	 * ABI-compat pad for prebuilt Samsung Mali r34p0 mali_gondul.ko,
+	 * which has offsetof(mm_struct, mmap_sem) == 0x70 hard-compiled
+	 * into every down_read/up_read site. Upstream commit af5b0f6a09e4
+	 * ("mm: consolidate page table accounting") shifted mmap_sem to
+	 * 0x68; this 8-byte pad restores 0x70. See maliissue-analysis.md.
+	 */
+	atomic_long_t __mali_gondul_abi_pad;
 	int map_count;				/* number of VMAs */
 
 	spinlock_t page_table_lock;		/* Protects page tables and some counters */
