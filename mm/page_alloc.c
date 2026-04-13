@@ -1034,13 +1034,7 @@ static inline int free_pages_check(struct page *page)
 	 * ClearPagePrivate before free, which is itself a bug. See
 	 * maliissue-analysis.md.
 	 */
-	/* Match the Mali corruption pattern specifically: PG_private set
-	 * AND _mapcount has a DMA-cookie-looking value (not the buddy
-	 * sentinel -1). This avoids touching legitimate filesystem buffer
-	 * pages or KASAN-quarantine-tracked pages that may have PG_private
-	 * set transiently for valid reasons.                              */
-	if (unlikely(PagePrivate(page)) &&
-	    unlikely(atomic_read(&page->_mapcount) != -1)) {
+	if (unlikely(PagePrivate(page))) {
 		ClearPagePrivate(page);
 		page_mapcount_reset(page);
 		set_page_private(page, 0);
@@ -1873,13 +1867,7 @@ static inline int check_new_page(struct page *page)
 	 * final catch-all on the alloc side. Sanitize and let
 	 * page_expected_state() pass. See maliissue-analysis.md.
 	 */
-	/* Match the Mali corruption pattern specifically: PG_private set
-	 * AND _mapcount has a DMA-cookie-looking value (not the buddy
-	 * sentinel -1). This avoids touching legitimate filesystem buffer
-	 * pages or KASAN-quarantine-tracked pages that may have PG_private
-	 * set transiently for valid reasons.                              */
-	if (unlikely(PagePrivate(page)) &&
-	    unlikely(atomic_read(&page->_mapcount) != -1)) {
+	if (unlikely(PagePrivate(page))) {
 		ClearPagePrivate(page);
 		page_mapcount_reset(page);
 		set_page_private(page, 0);
