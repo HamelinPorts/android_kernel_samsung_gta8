@@ -1021,6 +1021,26 @@ static void free_pages_check_bad(struct page *page)
 
 static inline int free_pages_check(struct page *page)
 {
+	/*
+	 * Samsung X205 vendor-blob ABI workaround: mali_gondul.ko (Mali
+	 * r34p0, built for stock 4.14.199) sets PG_private and writes a
+	 * DMA cookie at stock `page->private` offset (+0x30) on every GPU
+	 * page allocation. On the post-refactor LineageOS layout +0x30 is
+	 * `_mapcount|_refcount`, so every Mali-touched page reaches the
+	 * allocator's integrity check with corrupted counters and PG_private
+	 * still set. Sanitize here — this is the choke point for every free
+	 * path (free_pages_prepare head + tail loop, bulkfree_pcp_prepare).
+	 * The only legitimate in-tree caller would be one that forgot to
+	 * ClearPagePrivate before free, which is itself a bug. See
+	 * maliissue-analysis.md.
+	 */
+	if (unlikely(PagePrivate(page))) {
+		ClearPagePrivate(page);
+		page_mapcount_reset(page);
+		set_page_private(page, 0);
+		set_page_count(page, 0);
+	}
+
 	if (likely(page_expected_state(page, PAGE_FLAGS_CHECK_AT_FREE)))
 		return 0;
 
@@ -1097,6 +1117,32 @@ static __always_inline bool free_pages_prepare(struct page *page,
 	trace_mm_page_free(page, order);
 	if (PageProtect(page))
 		set_page_protect_num(page, 0);
+
+	/*
+	 * Samsung X205 vendor-blob ABI workaround: mali_gondul.ko (Mali
+	 * r34p0, built for stock 4.14.199) sets PG_private and writes a
+	 * DMA cookie at stock `page->private` offset (+0x30) on every GPU
+	 * page allocation. On the post-refactor LineageOS layout +0x30 is
+	 * `_mapcount|_refcount`, so every Mali-touched page reaches free
+	 * with corrupted counters and PG_private still set. Sanitize all
+	 * sub-pages here — this covers __free_pages, __put_page (via
+	 * free_hot_cold_page), free_pcppages_bulk, and any other path
+	 * that funnels through free_pages_prepare. The only legitimate
+	 * in-tree caller would be one that forgot to ClearPagePrivate
+	 * before free, which is itself a bug. See maliissue-analysis.md.
+	 */
+	if (unlikely(PagePrivate(page))) {
+		unsigned int i;
+
+		for (i = 0; i < (1u << order); i++) {
+			struct page *p = page + i;
+
+			ClearPagePrivate(p);
+			page_mapcount_reset(p);
+			set_page_private(p, 0);
+		}
+		set_page_count(page, 0);
+	}
 
 	/*
 	 * Check tail pages before head page information is cleared to
@@ -1809,6 +1855,25 @@ static void check_new_page_bad(struct page *page)
  */
 static inline int check_new_page(struct page *page)
 {
+	/*
+	 * Samsung X205 vendor-blob ABI workaround: mali_gondul.ko (Mali
+	 * r34p0, built for stock 4.14.199) sets PG_private and writes a
+	 * DMA cookie at stock `page->private` offset (+0x30). On the
+	 * post-refactor LineageOS layout +0x30 is `_mapcount|_refcount`,
+	 * so every Mali-touched page reaches the allocator's integrity
+	 * checks with corrupted counters and PG_private still set. The
+	 * various free paths (free_pages_prepare, bulkfree_pcp_prepare)
+	 * don't always observe the corruption in time, so this is the
+	 * final catch-all on the alloc side. Sanitize and let
+	 * page_expected_state() pass. See maliissue-analysis.md.
+	 */
+	if (unlikely(PagePrivate(page))) {
+		ClearPagePrivate(page);
+		page_mapcount_reset(page);
+		set_page_private(page, 0);
+		set_page_count(page, 0);
+	}
+
 	if (likely(page_expected_state(page,
 				PAGE_FLAGS_CHECK_AT_PREP|__PG_HWPOISON)))
 		return 0;
