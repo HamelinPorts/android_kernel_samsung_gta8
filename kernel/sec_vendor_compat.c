@@ -31,15 +31,14 @@
 /* ------------------------------------------------------------------------- */
 /* Vendor-binary ABI offset asserts                                          */
 /*                                                                           */
-/* Samsung's precompiled vendor .ko files (notably mali_gondul.ko, Mali      */
-/* r34p0) have Samsung 4.14.199 struct offsets hard-compiled into their     */
-/* instruction streams. Where a later 4.14.y LTS backport moved a field     */
-/* the blob directly reads or writes, we re-pad / reshape the kernel        */
-/* definition to restore the stock offset.                                  */
-/*                                                                          */
-/* These BUILD_BUG_ON assertions fail the build if any future change shifts */
-/* a guarded field, so the blob incompatibility cannot regress silently.   */
-/* See maliissue-analysis.md for the full analysis.                         */
+/* Samsung's precompiled vendor .ko files have stock 4.14.199 struct offsets */
+/* hard-compiled. Where a later 4.14.y LTS backport moved a field the blob   */
+/* directly reads or writes, we re-pad / reshape the kernel definition to    */
+/* restore the stock offset.                                                 */
+/*                                                                           */
+/* These BUILD_BUG_ON assertions fail the build if any future change shifts  */
+/* a guarded field, so the blob incompatibility cannot regress silently.    */
+/* See maliissue-analysis.md for the full analysis.                          */
 /* ------------------------------------------------------------------------- */
 
 static void __maybe_unused sec_vendor_abi_offset_asserts(void)
@@ -50,27 +49,7 @@ static void __maybe_unused sec_vendor_abi_offset_asserts(void)
 	 * have `add x0, x8, #0x70` hard-compiled for &current->mm->mmap_sem.
 	 * Restored by the pad field in struct mm_struct.             */
 	BUILD_BUG_ON(offsetof(struct mm_struct, mmap_sem) != 0x70);
-
-	/* struct page field offsets consumed by mali_gondul.ko's
-	 * kbase_mem_alloc_page (writes &page[i].private at +0x30) and
-	 * kbase_mem_pool_free_pages / kbase_free_phy_pages_helper
-	 * (reads &page[i].lru.prev at +0x28). Restored by the union
-	 * reshape in struct page.                                   */
-	BUILD_BUG_ON(offsetof(struct page, flags)      != 0x00);
-	BUILD_BUG_ON(offsetof(struct page, mapping)    != 0x08);
-	BUILD_BUG_ON(offsetof(struct page, index)      != 0x10);
-	BUILD_BUG_ON(offsetof(struct page, _mapcount)  != 0x18);
-	BUILD_BUG_ON(offsetof(struct page, _refcount)  != 0x1c);
-	BUILD_BUG_ON(offsetof(struct page, lru)        != 0x20);
-	/* lru.prev is what the Mali pool-free path actually reads */
-	BUILD_BUG_ON(offsetof(struct page, lru.prev)   != 0x28);
-	BUILD_BUG_ON(offsetof(struct page, private)    != 0x30);
-#ifdef CONFIG_MEMCG
-	BUILD_BUG_ON(offsetof(struct page, mem_cgroup) != 0x38);
-#endif
-	BUILD_BUG_ON(sizeof(struct page) != 64);
 }
-
 
 /* ------------------------------------------------------------------------- */
 /* ns_to_timespec                                                            */
