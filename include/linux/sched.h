@@ -784,22 +784,22 @@ struct task_struct {
 #endif
 
 	/*
-	 * TASKS_TRACE_RCU fields moved below vmacache so that mm,
-	 * active_mm and vmacache keep the same offsets as in Samsung's
-	 * stock X205XXS6DYG6 kernel.  Prebuilt vendor .ko modules
-	 * (mali_gondul, etc.) access current->mm via a hardcoded
-	 * offset; the 32 bytes that these fields used to add before
-	 * sched_info shifted mm from 0x528 to 0x548, causing the Mali
-	 * driver to read garbage and corrupt the vmacache on first GPU
-	 * use.
+	 * TASKS_TRACE_RCU fields are moved below nsproxy (further down,
+	 * see the second relocated block) so that mm, active_mm,
+	 * vmacache *and* nsproxy keep the same offsets as in Samsung's
+	 * stock X205XXS6DYG6 kernel.  Prebuilt vendor .ko modules access
+	 * current->mm and current->nsproxy at hardcoded offsets:
+	 *
+	 *   mali_gondul.ko        current->mm at +0x528
+	 *   sprdwl_ng.ko          current->nsproxy at +0x7B8 (then
+	 *                         nsproxy->uts_ns->name.release for the
+	 *                         "Kernel:%s" probe printk)
+	 *
+	 * The 28 bytes these fields would add (with hole packing the net
+	 * shift is 24 bytes) push nsproxy from 0x7B8 to 0x7D0, making
+	 * sprdwl_probe deref nameidata (NULL for most tasks) and panic.
+	 * Putting the block after nsproxy keeps both offsets stable.
 	 */
-#ifdef CONFIG_TASKS_TRACE_RCU
-	int				trc_reader_nesting;
-	int				trc_ipi_to_cpu;
-	bool				trc_reader_need_end;
-	bool				trc_reader_checked;
-	struct list_head		trc_holdout_list;
-#endif /* #ifdef CONFIG_TASKS_TRACE_RCU */
 	int				exit_state;
 	int				exit_code;
 	int				exit_signal;
@@ -975,6 +975,22 @@ struct task_struct {
 
 	/* Namespaces: */
 	struct nsproxy			*nsproxy;
+
+	/*
+	 * TASKS_TRACE_RCU fields relocated here -- see the comment
+	 * before exit_state above.  Must stay AFTER nsproxy so the
+	 * Samsung X205XXS6DYG6 task_struct layout (nsproxy at +0x7B8)
+	 * is preserved for prebuilt vendor modules.  These fields are
+	 * only referenced by name from kernel/rcu/tasks.h, so the
+	 * relocation is purely a layout change.
+	 */
+#ifdef CONFIG_TASKS_TRACE_RCU
+	int				trc_reader_nesting;
+	int				trc_ipi_to_cpu;
+	bool				trc_reader_need_end;
+	bool				trc_reader_checked;
+	struct list_head		trc_holdout_list;
+#endif /* #ifdef CONFIG_TASKS_TRACE_RCU */
 
 	/* Signal handlers: */
 	struct signal_struct		*signal;

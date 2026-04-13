@@ -1903,7 +1903,17 @@ struct net_device {
 	unsigned int		tx_queue_len;
 	spinlock_t		tx_global_lock;
 
-	struct xdp_dev_bulk_queue __percpu *xdp_bulkq;
+	/*
+	 * xdp_bulkq is moved to the very end of net_device (just after
+	 * xdp_state) so that reg_state stays at offset 0x490 -- the same
+	 * place Samsung's stock X205XXS6DYG6 kernel had it.  The Samsung
+	 * sprdwl_ng.ko's register_netdevice path BUG()s on the new
+	 * (Android 16-side) reg_state offset because the layout shift
+	 * makes its alloc_netdev'd buffer's reg_state byte read as
+	 * non-zero (i.e. != NETREG_UNINITIALIZED).  Only kernel/bpf/devmap.c
+	 * and net/core/dev.c reference xdp_bulkq, both by name, so the
+	 * relocation is purely a layout change.
+	 */
 
 #ifdef CONFIG_XPS
 	struct xps_dev_maps __rcu *xps_maps;
@@ -2005,6 +2015,13 @@ struct net_device {
 
 	/* protected by rtnl_lock */
 	struct bpf_xdp_entity	xdp_state[__MAX_XDP_MODE];
+
+	/*
+	 * Relocated from the transmit-cache section to preserve the
+	 * Samsung X205XXS6DYG6 reg_state offset for sprdwl_ng.ko.
+	 * See the comment near the original (now removed) declaration.
+	 */
+	struct xdp_dev_bulk_queue __percpu *xdp_bulkq;
 };
 #define to_net_dev(d) container_of(d, struct net_device, dev)
 
