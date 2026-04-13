@@ -164,6 +164,20 @@ struct page {
 		struct rcu_head rcu_head;
 	};
 
+	/*
+	 * ABI-compat scratch for the Samsung Mali r34p0 prebuilt
+	 * mali_gondul.ko, whose `set_page_private(page, dma_addr)` is
+	 * inlined as `str x24, [page, #0x30]`. On the post-refactor
+	 * LineageOS layout +0x30 was `_mapcount | _refcount`, which the
+	 * blob stomped (and later read back as a corrupted DMA cookie,
+	 * crashing __swiotlb_sync). This 8-byte slot now occupies +0x30
+	 * exclusively so the blob's stomp lands on a no-op field; the
+	 * real `_mapcount`/`_refcount` move to +0x38, and `mem_cgroup`
+	 * relocates to a PFN-indexed shadow array (page_memcg_shadow,
+	 * see mm/memcontrol.c). See maliissue-analysis.md.
+	 */
+	unsigned long _mali_compat_scratch;
+
 	union {		/* This union is 4 bytes in size. */
 		/*
 		 * If the page can be mapped to userspace, encodes the number
@@ -186,9 +200,7 @@ struct page {
 	/* Usage count. *DO NOT USE DIRECTLY*. See page_ref.h */
 	atomic_t _refcount;
 
-#ifdef CONFIG_MEMCG
-	struct mem_cgroup *mem_cgroup;
-#endif
+	/* mem_cgroup moved to page_memcg_shadow[] — see mm/memcontrol.c. */
 
 	/*
 	 * On machines where all RAM is mapped into kernel address space,

@@ -506,6 +506,16 @@ void __init bootmem_init(void)
 	sparse_init();
 	zone_sizes_init(min, max);
 
+#ifdef CONFIG_MEMCG
+	{
+		extern void __init mem_cgroup_init_shadow(void);
+		/* Allocate the per-PFN mem_cgroup shadow array. The mem_cgroup
+		 * field was moved out of struct page to free the +0x30 slot
+		 * for the Mali r34p0 vendor blob; see maliissue-analysis.md. */
+		mem_cgroup_init_shadow();
+	}
+#endif
+
 	memblock_dump_all();
 }
 

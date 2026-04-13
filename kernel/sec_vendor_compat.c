@@ -49,6 +49,22 @@ static void __maybe_unused sec_vendor_abi_offset_asserts(void)
 	 * have `add x0, x8, #0x70` hard-compiled for &current->mm->mmap_sem.
 	 * Restored by the pad field in struct mm_struct.             */
 	BUILD_BUG_ON(offsetof(struct mm_struct, mmap_sem) != 0x70);
+
+	/* struct page +0x30 must be the Mali ABI-compat scratch slot
+	 * (NOT _mapcount/_refcount). mali_gondul.ko's kbase_mem_alloc_page
+	 * has `str x24, [page, #0x30]` for set_page_private(dma_addr) and
+	 * later reads it back as a DMA cookie. If anything kernel-used
+	 * lives at +0x30, the blob will stomp it (alloc) or read corrupted
+	 * data (free → __swiotlb_sync panic).                       */
+	BUILD_BUG_ON(offsetof(struct page, _mali_compat_scratch) != 0x30);
+	/* And _mapcount / _refcount must NOT be at +0x30 — they have to
+	 * live at +0x38 onward where the blob never touches them.       */
+	BUILD_BUG_ON(offsetof(struct page, _mapcount) != 0x38);
+	BUILD_BUG_ON(offsetof(struct page, _refcount) != 0x3c);
+	/* sizeof must stay 64 — STRUCT_PAGE_MAX_SHIFT in
+	 * arch/arm64/include/asm/memory.h is 6 and vmemmap arithmetic
+	 * depends on it.                                                */
+	BUILD_BUG_ON(sizeof(struct page) != 64);
 }
 
 /* ------------------------------------------------------------------------- */

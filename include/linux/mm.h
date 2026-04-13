@@ -1139,14 +1139,26 @@ static inline void set_page_links(struct page *page, enum zone_type zone,
 }
 
 #ifdef CONFIG_MEMCG
+/*
+ * page_memcg / page_memcg_rcu read from a PFN-indexed shadow array
+ * (page_memcg_shadow) instead of struct page. The mem_cgroup field
+ * was relocated out of struct page to free up the +0x30 slot (which
+ * Mali r34p0's prebuilt blob writes to as `set_page_private`).
+ * See mm/memcontrol.c and maliissue-analysis.md.
+ */
+extern struct mem_cgroup **page_memcg_shadow;
 static inline struct mem_cgroup *page_memcg(struct page *page)
 {
-	return page->mem_cgroup;
+	if (likely(page_memcg_shadow))
+		return page_memcg_shadow[page_to_pfn(page)];
+	return NULL;
 }
 static inline struct mem_cgroup *page_memcg_rcu(struct page *page)
 {
 	WARN_ON_ONCE(!rcu_read_lock_held());
-	return READ_ONCE(page->mem_cgroup);
+	if (likely(page_memcg_shadow))
+		return READ_ONCE(page_memcg_shadow[page_to_pfn(page)]);
+	return NULL;
 }
 #else
 static inline struct mem_cgroup *page_memcg(struct page *page)

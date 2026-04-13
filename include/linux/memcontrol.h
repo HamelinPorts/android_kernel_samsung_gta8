@@ -36,6 +36,14 @@ struct page;
 struct mm_struct;
 struct kmem_cache;
 
+/*
+ * page_memcg() accessor is declared in <linux/mm.h>. These two helpers
+ * complete the accessor API used to isolate struct page from mem_cgroup
+ * storage (see mm/memcontrol.c).
+ */
+void set_page_memcg(struct page *page, struct mem_cgroup *memcg);
+struct mem_cgroup **__page_memcg_ptr(struct page *page);
+
 /* Cgroup-specific page state, on top of universal node page state */
 enum memcg_stat_item {
 	MEMCG_CACHE = NR_VM_NODE_STAT_ITEMS,
@@ -575,15 +583,15 @@ static inline void mod_memcg_state(struct mem_cgroup *memcg,
 static inline void __mod_memcg_page_state(struct page *page,
 					  int idx, int val)
 {
-	if (page->mem_cgroup)
-		__mod_memcg_state(page->mem_cgroup, idx, val);
+	if (page_memcg(page))
+		__mod_memcg_state(page_memcg(page), idx, val);
 }
 
 static inline void mod_memcg_page_state(struct page *page,
 					int idx, int val)
 {
-	if (page->mem_cgroup)
-		mod_memcg_state(page->mem_cgroup, idx, val);
+	if (page_memcg(page))
+		mod_memcg_state(page_memcg(page), idx, val);
 }
 
 static inline unsigned long lruvec_page_state(struct lruvec *lruvec,
@@ -647,12 +655,12 @@ static inline void __mod_lruvec_page_state(struct page *page,
 	struct lruvec *lruvec;
 
 	/* Untracked pages have no memcg, no lruvec. Update only the node */
-	if (!page->mem_cgroup) {
+	if (!page_memcg(page)) {
 		__mod_node_page_state(pgdat, idx, val);
 		return;
 	}
 
-	lruvec = mem_cgroup_lruvec(pgdat, page->mem_cgroup);
+	lruvec = mem_cgroup_lruvec(pgdat, page_memcg(page));
 	__mod_lruvec_state(lruvec, idx, val);
 }
 
@@ -701,8 +709,8 @@ static inline void count_memcg_events(struct mem_cgroup *memcg,
 static inline void count_memcg_page_event(struct page *page,
 					  enum vm_event_item idx)
 {
-	if (page->mem_cgroup)
-		count_memcg_events(page->mem_cgroup, idx, 1);
+	if (page_memcg(page))
+		count_memcg_events(page_memcg(page), idx, 1);
 }
 
 static inline void count_memcg_event_mm(struct mm_struct *mm,

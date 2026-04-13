@@ -68,8 +68,8 @@ void __dump_page(struct page *page, const char *reason)
 		pr_alert("page dumped because: %s\n", reason);
 
 #ifdef CONFIG_MEMCG
-	if (page->mem_cgroup)
-		pr_alert("page->mem_cgroup:%px\n", page->mem_cgroup);
+	if (page_memcg(page))
+		pr_alert("page->mem_cgroup:%px\n", page_memcg(page));
 #endif
 }
 
