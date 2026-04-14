@@ -1853,6 +1853,18 @@ struct net_device {
 #endif
 	void 			*atalk_ptr;
 	struct in_device __rcu	*ip_ptr;
+	/*
+	 * Placeholder reserving 8 bytes where Samsung's stock
+	 * X205XXS6DYG6 kernel had `struct dn_dev *dn_ptr` (CONFIG_DECNET).
+	 * We don't enable DECnet, but the prebuilt sprdwl_ng.ko stores
+	 * net_device->ieee80211_ptr at the offset Samsung's layout
+	 * would have used (0x2E0 = 736); without this padding our
+	 * ieee80211_ptr lands at 0x2D8 = 728 and cfg80211 reads NULL
+	 * from the would-be wireless_dev slot, leaving wlan0
+	 * unregistered with cfg80211 (no /sys/class/net/wlan0/wireless,
+	 * `iw dev` returns empty, wificond fails to scan).
+	 */
+	void			*__dn_ptr_pad;
 	struct inet6_dev __rcu	*ip6_ptr;
 	void			*ax25_ptr;
 	struct wireless_dev	*ieee80211_ptr;
