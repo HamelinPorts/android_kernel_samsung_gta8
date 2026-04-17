@@ -200,6 +200,7 @@
 			record-size = <0x8000>;
 			console-size = <0x8000>;
 			pmsg-size = <0x8000>;
+			ftrace-size = <0x20000>;
 		};
 
 		debug_reserved: debug-mem@100000000 {
