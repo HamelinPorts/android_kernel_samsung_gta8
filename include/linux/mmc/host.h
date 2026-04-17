@@ -481,7 +481,7 @@ struct mmc_host {
 	atomic_t		cq_wait_rdy;
 	atomic_t		cq_rdy_cnt;
 	unsigned long		task_id_index;
-	int			cur_rw_task;
+	atomic_t		cur_rw_task;
 #define CQ_TASK_IDLE 99
 
 	atomic_t		is_data_dma;

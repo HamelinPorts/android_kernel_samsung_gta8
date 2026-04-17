@@ -338,7 +338,7 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 			host->wp_error = 0;
 			host->task_id_index = 0;
 			atomic_set(&host->is_data_dma, 0);
-			host->cur_rw_task = CQ_TASK_IDLE;
+			atomic_set(&host->cur_rw_task, CQ_TASK_IDLE);
 			atomic_set(&host->cq_tuning_now, 0);
 
 			for (i = 0; i < EMMC_MAX_QUEUE_DEPTH; i++) {

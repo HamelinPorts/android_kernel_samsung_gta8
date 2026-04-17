@@ -271,6 +271,33 @@ static int mmc_reset_for_cmdq(struct mmc_host *host)
 }
 
 /*
+ * Force a full CMDQ reinit from within mmc_cmd_queue_thread. Mirrors the
+ * existing done_mrq-error recovery sequence (msleep 2s drain, hw reset,
+ * clear data list, restore tasks, zero runtime counters). Factored out so
+ * both the first-wait probe loop and the second-wait counter backstop
+ * reach the same reset state.
+ */
+static void mmc_swcq_force_reinit(struct mmc_host *host, const char *reason)
+{
+	pr_warn("%s: forcing CMDQ reinit (%s): cur_rw_task=%d, areq_cnt=%d, task_id_index=%08lx\n",
+		__func__, reason,
+		atomic_read(&host->cur_rw_task),
+		atomic_read(&host->areq_cnt),
+		host->task_id_index);
+	msleep(2000);
+	if (mmc_reset_for_cmdq(host)) {
+		pr_err("%s: cmdq reset failed after lost IRQ\n", __func__);
+		WARN_ON(1);
+	}
+	mmc_clear_data_list(host);
+	mmc_restore_tasks(host);
+	atomic_set(&host->cq_wait_rdy, 0);
+	atomic_set(&host->cq_rdy_cnt, 0);
+	atomic_set(&host->cq_rw, false);
+	atomic_set(&host->cur_rw_task, CQ_TASK_IDLE);
+}
+
+/*
  *	check CMDQ QSR
  */
 void mmc_do_check(struct mmc_host *host)
@@ -466,6 +493,13 @@ static int mmc_check_write(struct mmc_host *host, struct mmc_request *mrq)
 /* Sleep when polling cmd13' for over 1ms */
 #define CMD13_TMO_NS (1000 * 1000)
 
+/*
+ * Consecutive 10s cq_rw-wait timeouts with no done_mrq and no new areq
+ * before we declare the completion IRQ lost and force a full CMDQ reinit.
+ * 3 * 10s = 30s, matching the CMD13'-resp==0 recovery threshold.
+ */
+#define CQ_RW_STUCK_TIMEOUTS	3
+
 int mmc_cmd_queue_thread(void *data)
 {
 	struct mmc_host *host = data;
@@ -476,6 +510,7 @@ int mmc_cmd_queue_thread(void *data)
 	bool is_done = false;
 
 	int err;
+	unsigned int cq_rw_stuck_count = 0;
 	u64 chk_time = 0;
 	struct sched_param scheduler_params = {0};
 	struct sprd_sdhc_host *sprd_host = mmc_priv(host);
@@ -499,6 +534,8 @@ int mmc_cmd_queue_thread(void *data)
 			}
 		}
 		if (done_mrq) {
+			/* progress made -- reset the lost-IRQ watchdog */
+			cq_rw_stuck_count = 0;
 			if (done_mrq->data->error || done_mrq->cmd->error) {
 				emmc_resetting_when_cmdq = 1;
 				if (mmc_wait_transfer(host)
@@ -527,7 +564,7 @@ restore_task:
 				mmc_clear_data_list(host);
 				atomic_set(&host->cq_rdy_cnt, 0);
 
-				host->cur_rw_task = CQ_TASK_IDLE;
+				atomic_set(&host->cur_rw_task, CQ_TASK_IDLE);
 				task_id = (done_mrq->cmd->arg >> 16) & 0x1f;
 				host->ops->request(host,
 					host->areq_que[task_id]->mrq_que);
@@ -541,7 +578,7 @@ restore_task:
 			&& !done_mrq->cmd->error) {
 				task_id = (done_mrq->cmd->arg >> 16) & 0x1f;
 				mmc_check_write(host, done_mrq);
-				host->cur_rw_task = CQ_TASK_IDLE;
+				atomic_set(&host->cur_rw_task, CQ_TASK_IDLE);
 				is_done = true;
 
 				if (atomic_read(&host->cq_tuning_now) == 1) {
@@ -567,13 +604,54 @@ restore_task:
 
 				atomic_set(&host->cq_rw, true);
 				task_id = ((data_mrq->cmd->arg >> 16) & 0x1f);
-				host->cur_rw_task = task_id;
+				atomic_set(&host->cur_rw_task, task_id);
 				host->ops->request(host, data_mrq);
 				if (sprd_host->need_intr) {
-					timeout = wait_event_interruptible_timeout(
-					host->cmdq_que, host->done_mrq, 10 * HZ);
-					if (!timeout)
-						pr_info("[CQ] time out occurred!\n");
+					unsigned int probe_iter;
+					u32 probe_status;
+					int probe_err;
+
+					/*
+					 * Post-dispatch DMA wait. Normal
+					 * completion arrives in <5ms. A 1s
+					 * wait is ~200x over-budget; if it
+					 * expires, probe via CMD13 to tell
+					 * "IRQ lost (card in TRAN)" from
+					 * "card still busy (PROG/DATA/RCV)".
+					 * The sum of 10 iterations matches
+					 * the vendor's original 10s ceiling
+					 * (HW max_busy_timeout at HS200).
+					 */
+					for (probe_iter = 0;
+					     probe_iter < 10;
+					     probe_iter++) {
+						timeout = wait_event_interruptible_timeout(
+							host->cmdq_que,
+							host->done_mrq, HZ);
+						if (host->done_mrq)
+							break;
+						probe_err = mmc_blk_status_check(
+							host->card,
+							&probe_status);
+						if (!probe_err &&
+						    R1_CURRENT_STATE(probe_status)
+						    == R1_STATE_TRAN) {
+							pr_warn("%s: card TRAN after %us, lost IRQ on task %d\n",
+								__func__,
+								probe_iter + 1,
+								atomic_read(&host->cur_rw_task));
+							mmc_swcq_force_reinit(
+								host,
+								"first-wait probe TRAN");
+							cq_rw_stuck_count = 0;
+							break;
+						}
+						if (kthread_should_stop())
+							break;
+					}
+					if (!host->done_mrq && probe_iter == 10)
+						pr_info("[CQ] time out occurred! probes=%u\n",
+							probe_iter);
 				}
 				atomic_dec(&host->cq_rdy_cnt);
 				data_mrq = NULL;
@@ -653,6 +731,48 @@ restore_task:
 					atomic_read(&host->cq_rw),
 					atomic_read(&host->cq_wait_rdy),
 					atomic_read(&host->cq_rdy_cnt));
+			}
+			/*
+			 * Lost-completion recovery. If cq_rw stayed true across
+			 * N consecutive 10s waits with no done_mrq and no new
+			 * areq arrived, assume the CMD46/47 completion IRQ was
+			 * dropped (pm_runtime autosuspend race, KASAN-inflated
+			 * latency, etc) and replay the CMDQ reinit sequence
+			 * used by the CMD44/45-error path. Without this, the
+			 * thread hot-spins forever and userspace I/O wedges.
+			 */
+			if (!timeout && !host->done_mrq &&
+			    atomic_read(&host->areq_cnt) == areq_cnt_chk) {
+				u32 probe_status = 0;
+				int probe_err;
+
+				/*
+				 * Second-wait probe backstop. If the first-wait
+				 * probe loop somehow missed a lost IRQ (e.g.
+				 * card was PROG across all 10 probes and then
+				 * dropped the IRQ after completing), catch it
+				 * here. On confirmed TRAN, force-trigger the
+				 * counter threshold so the reinit below runs
+				 * without waiting another 20s.
+				 */
+				probe_err = mmc_blk_status_check(host->card,
+					&probe_status);
+				if (!probe_err &&
+				    R1_CURRENT_STATE(probe_status) ==
+				    R1_STATE_TRAN) {
+					pr_warn("%s: second-wait probe TRAN on task %d\n",
+						__func__,
+						atomic_read(&host->cur_rw_task));
+					cq_rw_stuck_count = CQ_RW_STUCK_TIMEOUTS;
+				}
+
+				if (++cq_rw_stuck_count >= CQ_RW_STUCK_TIMEOUTS) {
+					mmc_swcq_force_reinit(host,
+						"second-wait counter/probe");
+					cq_rw_stuck_count = 0;
+				}
+			} else {
+				cq_rw_stuck_count = 0;
 			}
 			/* DMA time should not count in polling time */
 			chk_time = 0;
@@ -768,7 +888,7 @@ void mmc_wait_cmdq_done(struct mmc_request *mrq)
 		not_ready_time = 0;
 		do {
 			if ((resp & 1) && (!host->data_mrq_queued[i])) {
-				if (host->cur_rw_task == i) {
+				if (atomic_read(&host->cur_rw_task) == i) {
 					resp >>= 1;
 					i++;
 					continue;
