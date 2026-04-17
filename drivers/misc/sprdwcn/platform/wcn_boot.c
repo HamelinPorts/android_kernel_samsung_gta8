@@ -2334,6 +2334,32 @@ static int marlin_set_power(enum wcn_sub_sys subsys, int val)
 			}
 			atomic_set(&marlin_dev->download_finish_flag, 1);
 			pr_info("then marlin download finished and run ok\n");
+
+			/*
+			 * Disable the BTWF CM4 hardware watchdog.  The
+			 * firmware enables it during boot; if the CM4 hangs
+			 * its WDT fires a PMU reset that reboots the SoC.
+			 *
+			 * With the HW WDT off, the AP-side loopcheck
+			 * (5s poll + 4s timeout) detects the hang and
+			 * triggers wcn_reset_cp2() for WCN-only recovery.
+			 *
+			 * BTWF_WATCHDOG base = 0x40040000 (SPRD WDT):
+			 *   +0x20  LOCK — write 0xE551 to unlock
+			 *   +0x08  CTRL — bit0=wdt_en; write 0 to disable
+			 */
+			{
+				unsigned int val_wdt;
+
+				val_wdt = 0xE551;
+				sprdwcn_bus_reg_write(0x40040020, &val_wdt, 4);
+				val_wdt = 0;
+				sprdwcn_bus_reg_write(0x40040008, &val_wdt, 4);
+				val_wdt = 0;
+				sprdwcn_bus_reg_write(0x40040020, &val_wdt, 4);
+				pr_info("BTWF WDT disabled\n");
+			}
+
 #ifdef CONFIG_WCN_PCIE
 			wcn_firmware_init();
 #endif
