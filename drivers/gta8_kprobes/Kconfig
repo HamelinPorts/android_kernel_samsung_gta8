@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# gta8-specific kprobes that mitigate / observe issues in the
+# downstream sprdwl_ng (SC2355) WLAN driver. Source for these modules
+# used to live under device/samsung/gta8/sprdwl_*/ and was built
+# out-of-tree; moved into the kernel here so the build system tracks
+# kernel-ABI rebuilds automatically (out-of-tree builds via `make` are
+# blocked in modern AOSP's build sandbox).
+#
+
+menu "Tab A8 (gta8) downstream-WLAN kprobes"
+
+config GTA8_SPRDWL_HOLDTIME
+	tristate "sprdwl_ng entry-point hold-time tracker"
+	depends on KPROBES && DEBUG_FS
+	default n
+	help
+	  Per-CPU kprobe that records the wall-clock duration of each
+	  sprdwl_ng entry-point invocation. Exports a debugfs file under
+	  /sys/kernel/debug/gta8_sprdwl_holdtime/. Diagnostic-only — no
+	  effect on driver behaviour. Build as a module.
+
+config GTA8_SPRDWL_RX_KPROBE
+	tristate "sprdwl_ng RX-path double-free mitigation kprobe"
+	depends on KPROBES
+	default n
+	help
+	  Kprobe on sprdwl_free_data() that detects descriptor
+	  re-processing (the double-free vector that wedges /data on a
+	  WiFi reset). When the kprobe fires for the same descriptor
+	  twice in a row it short-circuits the second free, preventing
+	  the panic chain. See device/samsung/gta8 history for the
+	  full root-cause analysis. Build as a module.
+
+endmenu

@@ -5101,3 +5101,12 @@ CONFIG_SBITMAP=y
 # CONFIG_TEST is not set
 
 CONFIG_GKI_HIDDEN_GPU_CONFIGS=y
+
+#
+# Tab A8 (gta8) downstream-WLAN kprobes — formerly built out-of-tree
+# from device/samsung/gta8/sprdwl_*/, now in-kernel under
+# drivers/gta8_kprobes/. Both modular so they can be insmod'd
+# selectively.
+#
+CONFIG_GTA8_SPRDWL_HOLDTIME=m
+CONFIG_GTA8_SPRDWL_RX_KPROBE=m
